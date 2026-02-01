@@ -52,6 +52,7 @@ typedef struct {
     uint8_t rise_index;
     uint8_t active_digit;
     bool location_changed;
+    bool use_civil_twilight;
     watch_date_time_t rise_set_expires;
     sunrise_sunset_lat_lon_settings_t working_latitude;
     sunrise_sunset_lat_lon_settings_t working_longitude;

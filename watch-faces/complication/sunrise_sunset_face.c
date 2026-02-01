@@ -58,6 +58,25 @@ static movement_location_t load_location_from_filesystem() {
     return location;
 }
 
+static void _sunrise_sunset_face_load_setting(sunrise_sunset_state_t *state) {
+    uint8_t setting = 0;
+    if (filesystem_get_file_size("srss.u8") == sizeof(setting)) {
+        filesystem_read_file("srss.u8", (char *) &setting, sizeof(setting));
+        state->use_civil_twilight = (setting & 1) != 0;
+    }
+}
+
+static void _sunrise_sunset_face_save_setting(sunrise_sunset_state_t *state) {
+    uint8_t setting = state->use_civil_twilight ? 1 : 0;
+    uint8_t existing = 0;
+    if (filesystem_get_file_size("srss.u8") == sizeof(existing)) {
+        filesystem_read_file("srss.u8", (char *) &existing, sizeof(existing));
+    }
+    if (setting != existing) {
+        filesystem_write_file("srss.u8", (char *) &setting, sizeof(setting));
+    }
+}
+
 static void _sunrise_sunset_set_expiration(sunrise_sunset_state_t *state, watch_date_time_t next_rise_set) {
     uint32_t timestamp = watch_utility_date_time_to_unix_time(next_rise_set, 0);
     state->rise_set_expires = watch_utility_date_time_from_unix_time(timestamp + 60, 0);
@@ -76,7 +95,10 @@ static void _sunrise_sunset_face_update(sunrise_sunset_state_t *state) {
     }
 
     if (movement_location.reg == 0) {
-        watch_display_text_with_fallback(WATCH_POSITION_TOP, "Sunri", "rI");
+        if (state->use_civil_twilight)
+            watch_display_text_with_fallback(WATCH_POSITION_TOP, "Civil", "CI");
+        else
+            watch_display_text_with_fallback(WATCH_POSITION_TOP, "Sunri", "rI");
         watch_display_text_with_fallback(WATCH_POSITION_BOTTOM, "No LOC", "No Loc");
         return;
     }
@@ -100,14 +122,23 @@ static void _sunrise_sunset_face_update(sunrise_sunset_state_t *state) {
 
     // we loop twice because if it's after sunset today, we need to recalculate to display values for tomorrow.
     for(int i = 0; i < 2; i++) {
-        uint8_t result = sun_rise_set(scratch_time.unit.year + WATCH_RTC_REFERENCE_YEAR, scratch_time.unit.month, scratch_time.unit.day, lon, lat, &rise, &set);
+        uint8_t result;
+        if (state->use_civil_twilight)
+            result = civil_twilight(scratch_time.unit.year + WATCH_RTC_REFERENCE_YEAR, scratch_time.unit.month, scratch_time.unit.day, lon, lat, &rise, &set);
+        else
+            result = sun_rise_set(scratch_time.unit.year + WATCH_RTC_REFERENCE_YEAR, scratch_time.unit.month, scratch_time.unit.day, lon, lat, &rise, &set);
 
         if (result != 0) {
             watch_clear_colon();
             watch_clear_indicator(WATCH_INDICATOR_PM);
             watch_clear_indicator(WATCH_INDICATOR_24H);
-            if (result == 1) watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "SET", "SE");
-            else watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "RIS", "rI");
+            if (result == 1) {
+                if (state->use_civil_twilight) watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "CIS", "CS");
+                else watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "SET", "SE");
+            } else {
+                if (state->use_civil_twilight) watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "CIR", "Cr");
+                else watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "RIS", "rI");
+            }
             sprintf(buf, "%2d", scratch_time.unit.day);
             watch_display_text(WATCH_POSITION_TOP_RIGHT, buf);
             watch_display_text(WATCH_POSITION_BOTTOM, "None  ");
@@ -148,7 +179,8 @@ static void _sunrise_sunset_face_update(sunrise_sunset_state_t *state) {
                     if (watch_utility_convert_to_12_hour(&scratch_time)) watch_set_indicator(WATCH_INDICATOR_PM);
                     else watch_clear_indicator(WATCH_INDICATOR_PM);
                 }
-                watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "RIS", "rI");
+                if (state->use_civil_twilight) watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "CIR", "Cr");
+                else watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "RIS", "rI");
                 sprintf(buf, "%2d", scratch_time.unit.day);
                 watch_display_text(WATCH_POSITION_TOP_RIGHT, buf);
                 sprintf(buf, "%2d%02d%2s", scratch_time.unit.hour, scratch_time.unit.minute,longLatPresets[state->longLatToUse].name);
@@ -187,7 +219,8 @@ static void _sunrise_sunset_face_update(sunrise_sunset_state_t *state) {
                     if (watch_utility_convert_to_12_hour(&scratch_time)) watch_set_indicator(WATCH_INDICATOR_PM);
                     else watch_clear_indicator(WATCH_INDICATOR_PM);
                 }
-                watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "SET", "SE");
+                if (state->use_civil_twilight) watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "CIS", "CS");
+                else watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "SET", "SE");
                 sprintf(buf, "%2d", scratch_time.unit.day);
                 watch_display_text(WATCH_POSITION_TOP_RIGHT, buf);
                 sprintf(buf, "%2d%02d%2s", scratch_time.unit.hour, scratch_time.unit.minute,longLatPresets[state->longLatToUse].name);
@@ -305,6 +338,15 @@ static void _sunrise_sunset_face_update_settings_display(movement_event_t event,
                 if (event.subsecond % 2) buf[state->active_digit] = ' ';
                 watch_display_text(WATCH_POSITION_BOTTOM, buf);
             }
+            break;
+        case 3:
+            // Mode: sunrise/sunset vs civil twilight
+            watch_display_text_with_fallback(WATCH_POSITION_TOP_LEFT, "MOD", "MO");
+            if (state->use_civil_twilight)
+                watch_display_text_with_fallback(WATCH_POSITION_BOTTOM, "CIVil ", "CIVil ");
+            else
+                watch_display_text_with_fallback(WATCH_POSITION_BOTTOM, "Sun   ", "Sun   ");
+            if (event.subsecond % 2) watch_display_text(WATCH_POSITION_BOTTOM, "      ");
             break;
     }
 }
@@ -455,6 +497,7 @@ void sunrise_sunset_face_setup(uint8_t watch_face_index, void ** context_ptr) {
     if (*context_ptr == NULL) {
         *context_ptr = malloc(sizeof(sunrise_sunset_state_t));
         memset(*context_ptr, 0, sizeof(sunrise_sunset_state_t));
+        _sunrise_sunset_face_load_setting((sunrise_sunset_state_t *)*context_ptr);
     }
 }
 
@@ -506,12 +549,17 @@ bool sunrise_sunset_face_loop(movement_event_t event, void *context) {
             }
             break;
         case EVENT_LIGHT_BUTTON_DOWN:
-            if (state->page) {
+            if (state->page == 3) {
+                // mode toggle page has no digits; advance to page 0
+                state->active_digit = 0;
+                state->page = 0;
+                _sunrise_sunset_face_save_setting(state);
+            } else if (state->page) {
                 if (watch_get_lcd_type() == WATCH_LCD_TYPE_CUSTOM) {
                     state->active_digit++;
                     if (state->active_digit > 4) {
                         state->active_digit = 0;
-                        state->page = (state->page + 1) % 3;
+                        state->page = state->page + 1; // 1→2 (lon), 2→3 (mode)
                         _sunrise_sunset_face_update_location_register(state);
                     }
                 } else {
@@ -519,7 +567,7 @@ bool sunrise_sunset_face_loop(movement_event_t event, void *context) {
                     if (state->page == 1 && state->active_digit == 1) state->active_digit++; // max latitude is +- 90, no hundreds place
                     if (state->active_digit > 5) {
                         state->active_digit = 0;
-                        state->page = (state->page + 1) % 3;
+                        state->page = state->page + 1; // 1→2 (lon), 2→3 (mode)
                         _sunrise_sunset_face_update_location_register(state);
                     }
                 }
@@ -543,7 +591,10 @@ bool sunrise_sunset_face_loop(movement_event_t event, void *context) {
             }
             break;
         case EVENT_ALARM_BUTTON_UP:
-            if (state->page) {
+            if (state->page == 3) {
+                state->use_civil_twilight = !state->use_civil_twilight;
+                _sunrise_sunset_face_update_settings_display(event, context);
+            } else if (state->page) {
                 _sunrise_sunset_face_advance_digit(state);
                 _sunrise_sunset_face_update_settings_display(event, context);
             } else {
@@ -568,6 +619,7 @@ bool sunrise_sunset_face_loop(movement_event_t event, void *context) {
                 state->active_digit = 0;
                 state->page = 0;
                 _sunrise_sunset_face_update_location_register(state);
+                _sunrise_sunset_face_save_setting(state);
                 _sunrise_sunset_face_update(state);
             }
             break;
@@ -596,4 +648,5 @@ void sunrise_sunset_face_resign(void *context) {
     state->active_digit = 0;
     state->rise_index = 0;
     _sunrise_sunset_face_update_location_register(state);
+    _sunrise_sunset_face_save_setting(state);
 }
