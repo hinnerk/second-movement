@@ -1,7 +1,7 @@
 Second Movement
 ===============
 
-This is a work-in-progress refactor of the Movement firmware for [Sensor Watch](https://www.sensorwatch.net).
+This is the successor refactor of the Movement firmware for [Sensor Watch](https://www.sensorwatch.net).
 
 
 Getting dependencies
@@ -38,6 +38,8 @@ Optionally you can set the watch time when building the firmware using `TIMESET=
 
 
 If you'd like to modify which faces are built and included in the firmware, edit `movement_config.h`. You will get a compilation error if you enable more faces than the watch can store.
+
+When you change `BOARD` or `DISPLAY`, run `make clean` before building again, or the display may come out garbled.
 
 Installing firmware to the watch
 ----------------------------

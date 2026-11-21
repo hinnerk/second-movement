@@ -80,4 +80,11 @@
 #include "simon_face.h"
 #include "ping_face.h"
 #include "rtccount_face.h"
+#include "tomato_face.h"
+#include "solar_time_face.h"
+#include "tide_face.h"
+#include "world_clock2_face.h"
+#include "hydration_face.h"
+#include "wumpus_face.h"
+#include "sun_moon_compass_face.h"
 // New includes go above this line.
