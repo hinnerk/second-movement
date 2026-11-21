@@ -42,6 +42,7 @@ SRCS += \
   ./watch-faces/clock/ke_decimal_time_face.c \
   ./watch-faces/complication/baby_kicks_face.c \
   ./watch-faces/complication/counter_face.c \
+  ./watch-faces/complication/hydration_face.c \
   ./watch-faces/complication/pulsometer_face.c \
   ./watch-faces/complication/interval_face.c \
   ./watch-faces/complication/timer_face.c \
@@ -55,4 +56,10 @@ SRCS += \
   ./watch-faces/complication/lander_face.c \
   ./watch-faces/complication/simon_face.c \
   ./watch-faces/complication/ping_face.c \
+  ./watch-faces/complication/tomato_face.c \
+  ./watch-faces/clock/solar_time_face.c \
+  ./watch-faces/complication/tide_face.c \
+  ./watch-faces/clock/world_clock2_face.c \
+  ./watch-faces/complication/wumpus_face.c \
+  ./watch-faces/complication/sun_moon_compass_face.c \
 # New watch faces go above this line.
